@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem eHadir - Panel Pentadbir Utama</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; background: #f4f6f9; color: #333; }
+        .wrapper { display: flex; min-height: 100vh; }
+        
+        /* Sidebar Styling */
+        .sidebar { width: 260px; background: #2c3e50; color: white; padding: 20px 0; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+        .sidebar h2 { text-align: center; font-size: 18px; margin-bottom: 30px; padding: 0 10px; color: #ecf0f1; border-bottom: 1px solid #34495e; padding-bottom: 15px;}
+        .tab-btn { width: 100%; padding: 15px 20px; background: none; border: none; color: #bdc3c7; text-align: left; cursor: pointer; font-size: 14px; font-weight: 500; display: block; transition: 0.3s; }
+        .tab-btn:hover { background: #34495e; color: white; }
+        .tab-btn.active { background: #dc3545; color: white; border-left: 5px solid #fff; font-weight: bold; }
+        
+        /* Main Content */
+        .main-content { flex: 1; padding: 25px; }
+        .header { background: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-bottom: 25px; }
+        .header h1 { margin: 0; font-size: 22px; color: #2c3e50; }
+        .btn-logout { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Dashboard Stats Widget */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 4px solid #007bff; }
+        .stat-card.present { border-left-color: #28a745; }
+        .stat-card.warning { border-left-color: #ffc107; }
+        .stat-card h3 { margin: 0 0 5px 0; font-size: 14px; color: #7f8c8d; text-transform: uppercase; }
+        .stat-card p { margin: 0; font-size: 28px; font-weight: bold; color: #2c3e50; }
+
+        /* Tables & Layouts */
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f2f6; padding-bottom: 12px; }
+        .card-header h3 { margin: 0; font-size: 18px; color: #2c3e50; }
+        
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 10px; }
+        th, td { padding: 12px 15px; border: 1px solid #e1e8ed; text-align: left; font-size: 14px; }
+        th { background: #f8f9fa; color: #333; font-weight: 600; }
+        tr:hover { background: #f8fafd; }
+        
+        /* Components */
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .badge-admin { background: #e2e3e5; color: #383d41; }
+        .badge-teacher { background: #cce5ff; color: #004085; }
+        .badge-student { background: #d4edda; color: #155724; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        
+        .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .btn-add { background: #28a745; color: white; }
+        .btn-edit { background: #ffc107; color: #212529; margin-right: 5px; }
+        .btn-delete { background: #dc3545; color: white; }
+        .btn-approve { background: #28a745; color: white; margin-right: 5px; }
+        .btn-primary { background: #007bff; color: white; width: 100%; padding: 10px; margin-top: 15px; }
+        
+        input, select, textarea { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 4px; font-size: 14px; }
+        
+        /* Modal System */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 450px; max-width: 90%; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .modal-close { float: right; cursor: pointer; font-size: 24px; font-weight: bold; color: #aaa; }
+        .modal-close:hover { color: black; }
+    </style>
+</head>
+<body>
+
+    <div class="wrapper">
+        <div class="sidebar">
+            <h2>Sistem Pentadbir eHadir</h2>
+            <button class="tab-btn active" onclick="switchTab('tab-dash')">📊 Papan Pemuka & Pemantauan</button>
+            <button class="tab-btn" onclick="switchTab('tab-users')">👥 Master Data: Pengguna</button>
+            <button class="tab-btn" onclick="switchTab('tab-classes')">🏫 Master Data: Kelas & Jadual</button>
+            <button class="tab-btn" onclick="switchTab('tab-appeals')">📝 Kelulusan Cuti & Rayuan</button>
+            <button class="tab-btn" onclick="switchTab('tab-reports')">📈 Analisis Ponteng & Laporan</button>
+            <button class="tab-btn" onclick="switchTab('tab-alerts')">📢 Komunikasi & Notifikasi</button>
+        </div>
+
+        <div class="main-content">
+            <div class="header">
+                <h1 id="panelTitle">Papan Pemuka & Pemantauan Semasa</h1>
+                <div>
+                    <span id="adminDisplay" style="margin-right: 15px; font-weight: bold; color: #495057;">Pentadbir</span>
+                    <button class="btn-logout" onclick="logout()">Log Keluar</button>
+                </div>
+            </div>
+
+            <div id="tab-dash" class="tab-content active">
+                <div class="stats-grid">
+                    <div class="stat-card"><h3>Jumlah Pengguna Berdaftar</h3><p id="statUsers">0</p></div>
+                    <div class="stat-card present"><h3>Jumlah Kelas Aktif</h3><p id="statClasses">0</p></div>
+                    <div class="stat-card warning"><h3>Rayuan/MC Belum Diproses</h3><p id="statPendingMC">0</p></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Log Pemantauan Aktiviti Sesi Kehadiran Semasa (Real-Time Stream)</h3>
+                    </div>
+                    <p style="font-size: 13px; color:#666;">Memantau aktiviti roll-call atau imbasan format semasa (QR, RFID, Biometrik, Manual) oleh Pensyarah/Warden:</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Masa Sesi Janaan</th>
+                                <th>Nama Kelas / Sesi</th>
+                                <th>Tenaga Pengajar (Warden/Pensyarah)</th>
+                                <th>Status Kaedah Ambil Rekod</th>
+                            </tr>
+                        </thead>
+                        <tbody id="liveLogStream">
+                            <tr><td colspan="4">Memuatkan aliran log aktif...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-users" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Pendaftaran Maklumat Profil & Peranan Akses</h3>
+                        <button class="btn btn-add" onclick="openUserModal()">+ Daftar Pengguna Baru</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID / No. Matrik</th>
+                                <th>Nama Penuh</th>
+                                <th>Hierarki Peranan (Access Role)</th>
+                                <th>Tindakan Urus Data</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody">
+                            <tr><td colspan="4">Memuatkan senarai pengguna...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-classes" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Penyusunan Kumpulan Kelas & Geofencing GPS</h3>
+                        <button class="btn btn-add" onclick="openClassModal()">+ Tambah Kelas Akademik</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Kod Kelas</th>
+                                <th>Nama Kelas/Kursus</th>
+                                <th>Guru/Pensyarah Ditugaskan</th>
+                                <th>Koordinat Geofencing (Lat, Long)</th>
+                                <th>Tindakan Urus Data</th>
+                            </tr>
+                        </thead>
+                        <tbody id="classTableBody">
+                            <tr><td colspan="5">Memuatkan senarai kelas...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-appeals" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Semakan Sijil Sakit (MC) & Rayuan Masalah Teknikal Pelajar</h3>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Pelajar</th>
+                                <th>Sebab Ketidakhadiran / Jenis Pelepasan</th>
+                                <th>Sijil/Bukti Dokumen</th>
+                                <th>Status Rayuan</th>
+                                <th>Tindakan Pentadbir</th>
+                            </tr>
+                        </thead>
+                        <tbody id="appealsTableBody">
+                            <tr><td colspan="5">Tiada permohonan rayuan semasa buat masa ini.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-reports" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Sistem Pengesanan Automatik Amaran Ponteng Tegar (&lt; 70% Kehadiran)</h3>
+                    </div>
+                    <p style="font-size: 13px; color: #dc3545; font-weight: bold;">*Pelajar dalam senarai ini berisiko disekat daripada menduduki peperiksaan akhir semester atau dikenakan tindakan disiplin.</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>No. Matrik</th>
+                                <th>Nama Pelajar</th>
+                                <th>Sesi Hadir / Jumlah Sesi</th>
+                                <th>Kadar Peratusan Kehadiran</th>
+                                <th>Status Kelayakan Peperiksaan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="criticalAttendanceBody">
+                            <tr><td colspan="5">Memproses analisis corak ketidakhadiran...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-alerts" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Penyiaran Pengumuman Rasmi Papan Kenyataan Digital</h3>
+                    </div>
+                    <form onsubmit="broadcastAnnouncement(event)">
+                        <label>Tajuk Mesej Notis:</label>
+                        <input type="text" id="announceTitle" required placeholder="Contoh: Gangguan Sistem Imbasan QR di Blok Akademik B">
+                        <label>Kandungan Pengumuman (Akan dipaparkan pada portal pelajar & pensyarah):</label>
+                        <textarea id="announceContent" rows="4" required placeholder="Tulis pengumuman di sini..."></textarea>
+                        <button type="submit" class="btn btn-add" style="width: 100%; padding: 12px;">Siarkan Pengumuman Sistem</button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Konfigurasi Amaran Had Ponteng Kritikal Automatik</h3>
+                    </div>
+                    <label>Had Ambang Baris Amaran (Threshold):</label>
+                    <select id="alertThreshold">
+                        <option value="70">Kurang daripada 70% Kehadiran (Had Kritikal Gagal)</option>
+                        <option value="80">Kurang daripada 80% Kehadiran (Had Amaran Awal)</option>
+                    </select>
+                    <label>Kumpulan Sasaran Notifikasi Automatik SMS/Emel:</label>
+                    <div style="margin: 10px 0;">
+                        <input type="checkbox" checked style="width: auto;"> Pelajar Terlibat <br>
+                        <input type="checkbox" checked style="width: auto;"> Ibu bapa / Penjaga <br>
+                        <input type="checkbox" checked style="width: auto;"> Pensyarah Kaunseling Fakulti
+                    </div>
+                    <button class="btn btn-delete" style="background:#007bff; width:100%; padding:10px;" onclick="alert('Tetapan amaran automatik berjaya disimpan.')">Simpan Tetapan Ambang Amaran</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal('userModal')">&times;</span>
+            <h3 id="userModalTitle">Daftar Pengguna Baru</h3>
+            <form id="userForm" onsubmit="saveUser(event)">
+                <input type="hidden" id="userId">
+                <label>ID / No. Matrik:</label>
+                <input type="text" id="userRegId" required placeholder="Contoh: S102, W301, P402">
+                <label>Nama Penuh:</label>
+                <input type="text" id="userFullName" required>
+                <label>Peranan Hierarki Akses:</label>
+                <select id="userRole" required>
+                    <option value="Student">Student (Pelajar)</option>
+                    <option value="Teacher">Teacher/Warden (Merekod Data)</option>
+                    <option value="Admin">Admin (Kawalan Penuh)</option>
+                </select>
+                <label>Kata Laluan:</label>
+                <input type="password" id="userPassword">
+                <small id="passHelp" style="color:gray; display:none;">*Biarkan kosong jika tidak mahu ubah kata laluan lama.</small>
+                <button type="submit" class="btn btn-primary">Simpan Profil Master Data</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="classModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal('classModal')">&times;</span>
+            <h3 id="classModalTitle">Tambah Urusan Kelas</h3>
+            <form id="classForm" onsubmit="saveClass(event)">
+                <input type="hidden" id="classId">
+                <label>Kod Kelas Akademik/Kursus:</label>
+                <input type="text" id="classCode" required placeholder="Contoh: KOD101">
+                <label>Nama Kelas / Kumpulan:</label>
+                <input type="text" id="className" required>
+                <label>Tenaga Pengajar (Pensyarah/Warden):</label>
+                <select id="classTeacher" required><option value="">Pilih Tenaga Pengajar</option></select>
+                <label>Latitude Geofencing GPS (Opsional):</label>
+                <input type="text" id="classLat" placeholder="Contoh: 3.1390">
+                <label>Longitude Geofencing GPS (Opsional):</label>
+                <input type="text" id="classLong" placeholder="Contoh: 101.6869">
+                <button type="submit" class="btn btn-primary">Simpan Rekod Jadual Kelas</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('adminDisplay').innerText = localStorage.getItem('full_name') || 'Administrator';
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+            
+            // Trigger data loader dynamically
+            if (tabId === 'tab-dash') loadDashboardData();
+            if (tabId === 'tab-users') loadUsers();
+            if (tabId === 'tab-classes') loadClasses();
+            if (tabId === 'tab-appeals') loadAppeals();
+            if (tabId === 'tab-reports') loadCriticalAnalysis();
+        }
+
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        // MODULE 2 & 3: FETCH DASHBOARD COUNTERS & LOG ACTIVITY STREAM
+        async function loadDashboardData() {
+            try {
+                const res = await fetch('attendance_api/admin_api.php?action=get_dashboard_stats');
+                const data = await res.json();
+                if(data.status === 'success') {
+                    document.getElementById('statUsers').innerText = data.stats.total_users;
+                    document.getElementById('statClasses').innerText = data.stats.total_classes;
+                    document.getElementById('statPendingMC').innerText = data.stats.pending_mc;
+                    
+                    const streamBody = document.getElementById('liveLogStream');
+                    streamBody.innerHTML = '';
+                    if(data.sessions.length === 0){
+                        streamBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Tiada sesi aktif atau pengimbasan kaedah semasa direkodkan hari ini.</td></tr>';
+                    } else {
+                        data.sessions.forEach(s => {
+                            streamBody.innerHTML += `<tr>
+                                <td><b>${s.start_time}</b><br><small>${s.session_date}</small></td>
+                                <td>${s.class_code} - ${s.class_name}</td>
+                                <td>${s.teacher_name}</td>
+                                <td><span class="badge badge-teacher">QR Aktif / Berjalan</span></td>
+                            </tr>`;
+                        });
+                    }
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        // MODULE 1: USERS MANAGEMENT
+        async function loadUsers() {
+            const res = await fetch('attendance_api/admin_api.php?action=get_users');
+            const result = await res.json();
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = '';
+            if(result.status === 'success') {
+                result.data.forEach(u => {
+                    let badgeClass = u.role === 'Admin' ? 'badge-admin' : (u.role === 'Teacher' ? 'badge-teacher' : 'badge-student');
+                    tbody.innerHTML += `<tr>
+                        <td>${u.user_id}</td>
+                        <td>${u.full_name}</td>
+                        <td><span class="badge ${badgeClass}">${u.role}</span></td>
+                        <td>
+                            <button class="btn btn-edit" onclick="editUser(${u.id},'${u.user_id}','${u.full_name}','${u.role}')">Urus Profil</button>
+                            <button class="btn btn-delete" onclick="deleteUser(${u.id})">Padam</button>
+                        </td>
+                    </tr>`;
+                });
+            }
+        }
+
+        function openUserModal() {
+            document.getElementById('userForm').reset();
+            document.getElementById('userId').value = '';
+            document.getElementById('userModalTitle').innerText = 'Daftar Profil Pengguna Baru';
+            document.getElementById('passHelp').style.display = 'none';
+            document.getElementById('userPassword').required = true;
+            document.getElementById('userModal').style.display = 'flex';
+        }
+
+        function editUser(id, uid, name, role) {
+            document.getElementById('userId').value = id;
+            document.getElementById('userRegId').value = uid;
+            document.getElementById('userFullName').value = name;
+            document.getElementById('userRole').value = role;
+            document.getElementById('userPassword').value = '';
+            document.getElementById('userPassword').required = false;
+            document.getElementById('passHelp').style.display = 'block';
+            document.getElementById('userModalTitle').innerText = 'Ubah Suai Profil Pengguna';
+            document.getElementById('userModal').style.display = 'flex';
+        }
+
+        async function saveUser(e) {
+            e.preventDefault();
+            const payload = {
+                action: 'save_user',
+                id: document.getElementById('userId').value || null,
+                user_id: document.getElementById('userRegId').value,
+                full_name: document.getElementById('userFullName').value,
+                role: document.getElementById('userRole').value,
+                password: document.getElementById('userPassword').value || null
+            };
+            const res = await fetch('attendance_api/admin_api.php', { method: 'POST', body: JSON.stringify(payload) });
+            const r = await res.json();
+            alert(r.message);
+            if(r.status==='success') { closeModal('userModal'); loadUsers(); }
+        }
+
+        async function deleteUser(id) {
+            if(!confirm("Anda pasti mahu memadam profil induk ini?")) return;
+            const res = await fetch('attendance_api/admin_api.php', { method: 'POST', body: JSON.stringify({action:'delete_user', id:id}) });
+            const r = await res.json();
+            alert(r.message); loadUsers();
+        }
+
+        // MODULE 1: CLASSES MANAGEMENT
+        async function loadClasses() {
+            const res = await fetch('attendance_api/admin_api.php?action=get_classes');
+            const result = await res.json();
+            const tbody = document.getElementById('classTableBody');
+            tbody.innerHTML = '';
+            if(result.status === 'success') {
+                result.data.forEach(c => {
+                    tbody.innerHTML += `<tr>
+                        <td>${c.class_code}</td>
+                        <td>${c.class_name}</td>
+                        <td>${c.teacher_name || '<span style="color:red;">Tiada Ditugaskan</span>'}</td>
+                        <td>${c.geo_lat && c.geo_long ? `${c.geo_lat}, ${c.geo_long}` : 'Tiada Sekatan Satelit'}</td>
+                        <td>
+                            <button class="btn btn-edit" onclick="editClass(${c.id},'${c.class_code}','${c.class_name}','${c.teacher_id}','${c.geo_lat||''}','${c.geo_long||''}')">Urus Kelas</button>
+                            <button class="btn btn-delete" onclick="deleteClass(${c.id})">Padam</button>
+                        </td>
+                    </tr>`;
+                });
+            }
+            loadTeacherDropdown();
+        }
+
+        async function loadTeacherDropdown() {
+            const res = await fetch('attendance_api/admin_api.php?action=get_teachers');
+            const r = await res.json();
+            const select = document.getElementById('classTeacher');
+            select.innerHTML = '<option value="">Pilih Tenaga Pengajar</option>';
+            if(r.status === 'success') {
+                r.data.forEach(t => { select.innerHTML += `<option value="${t.id}">${t.full_name}</option>`; });
+            }
+        }
+
+        function openClassModal() {
+            document.getElementById('classForm').reset();
+            document.getElementById('classId').value = '';
+            document.getElementById('classModalTitle').innerText = 'Tambah Rekod Kumpulan Kelas Baru';
+            document.getElementById('classModal').style.display = 'flex';
+        }
+
+        function editClass(id, code, name, tid, lat, lng) {
+            document.getElementById('classId').value = id;
+            document.getElementById('classCode').value = code;
+            document.getElementById('className').value = name;
+            document.getElementById('classTeacher').value = tid || '';
+            document.getElementById('classLat').value = lat;
+            document.getElementById('classLong').value = lng;
+            document.getElementById('classModalTitle').innerText = 'Ubah Konfigurasi Master Data Kelas';
+            document.getElementById('classModal').style.display = 'flex';
+        }
+
+        async function saveClass(e) {
+            e.preventDefault();
+            const payload = {
+                action: 'save_class',
+                id: document.getElementById('classId').value || null,
+                class_code: document.getElementById('classCode').value,
+                class_name: document.getElementById('className').value,
+                teacher_id: document.getElementById('classTeacher').value,
+                geo_lat: document.getElementById('classLat').value || null,
+                geo_long: document.getElementById('classLong').value || null
+            };
+            const res = await fetch('attendance_api/admin_api.php', { method: 'POST', body: JSON.stringify(payload) });
+            const r = await res.json();
+            alert(r.message);
+            if(r.status==='success') { closeModal('classModal'); loadClasses(); }
+        }
+
+        async function deleteClass(id) {
+            if(!confirm("Padam kelas ini?")) return;
+            const res = await fetch('attendance_api/admin_api.php', { method: 'POST', body: JSON.stringify({action:'delete_class', id:id}) });
+            const r = await res.json();
+            alert(r.message); loadClasses();
+        }
+
+        // MODULE 4: APPEALS & LEAVE REVIEWS (MC MANAGEMENT)
+        async function loadAppeals() {
+            const res = await fetch('attendance_api/admin_api.php?action=get_leave_requests');
+            const r = await res.json();
+            const tbody = document.getElementById('appealsTableBody');
+            tbody.innerHTML = '';
+            if(r.status === 'success' && r.requests.length > 0) {
+                r.requests.forEach(req => {
+                    tbody.innerHTML += `<tr>
+                        <td><b>${req.full_name}</b><br><small>${req.student_reg_no}</small></td>
+                        <td><span class="badge badge-admin">${req.leave_type}</span></td>
+                        <td><a href="attendance_api/${req.mc_file_path}" target="_blank" style="color:#007bff; font-weight:bold;">Lihat Bukti Sijil Dokumen</a></td>
+                        <td><span class="badge badge-danger" style="background:#ffc107; color:black;">Pending Kelulusan</span></td>
+                        <td>
+                            <button class="btn btn-approve" onclick="processAppeal(${req.id}, 'Approve')">Luluskan</button>
+                            <button class="btn btn-delete" onclick="processAppeal(${req.id}, 'Reject')">Tolak</button>
+                        </td>
+                    </tr>`;
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:gray;">Tiada permohonan pelepasan atau rayuan pelajar yang tertunggak.</td></tr>';
+            }
+        }
+
+        async function processAppeal(id, decision) {
+            const res = await fetch('attendance_api/admin_api.php', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'process_leave', id: id, status: decision })
+            });
+            const r = await res.json();
+            alert(r.message); loadAppeals();
+        }
+
+        // MODULE 3: PONTENG & ATTENDANCE THRESHOLD RISK ANALYSIS
+        async function loadCriticalAnalysis() {
+            const res = await fetch('attendance_api/admin_api.php?action=get_critical_students');
+            const r = await res.json();
+            const tbody = document.getElementById('criticalAttendanceBody');
+            tbody.innerHTML = '';
+            if(r.status === 'success' && r.data.length > 0) {
+                r.data.forEach(row => {
+                    let perc = parseFloat(row.percentage);
+                    let elg = perc >= 70 ? '<span class="badge badge-student">LAYAK</span>' : '<span class="badge badge-danger">SEKAT EXAM</span>';
+                    tbody.innerHTML += `<tr>
+                        <td>${row.user_id}</td>
+                        <td><b>${row.full_name}</b></td>
+                        <td>${row.attended} / ${row.total_classes} Sesi</td>
+                        <td style="color:red; font-weight:bold;">${perc}%</td>
+                        <td>${elg}</td>
+                    </tr>`;
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:green; font-weight:bold;">👍 Tiada pelajar dikesan ponteng di bawah ambang kritikal 70% semester ini!</td></tr>';
+            }
+        }
+
+        // MODULE 5: COMMUNICATIONS & ANNOUNCEMENT BROADCAST
+        async function broadcastAnnouncement(e) {
+            e.preventDefault();
+            const t = document.getElementById('announceTitle').value;
+            const c = document.getElementById('announceContent').value;
+            const res = await fetch('attendance_api/admin_api.php', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'post_announcement', title: t, content: c })
+            });
+            const r = await res.json();
+            alert(r.message);
+            document.getElementById('announceTitle').value = '';
+            document.getElementById('announceContent').value = '';
+        }
+
+        function logout() { localStorage.clear(); window.location.href = 'index.html'; }
+
+        // Trigger load papan pemuka pertama kali dibuka
+        loadDashboardData();
+    </script>
+</body>
+</html>

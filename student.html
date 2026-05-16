@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Pelajar - eHadir</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; margin: 0; padding: 0; }
+        .container { padding: 20px; max-width: 600px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .alert-box { padding: 15px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; display: none; }
+        .alert-warning { background: #fff3cd; color: #856404; border-left: 5px solid #ffc107; }
+        .alert-danger { background: #f8d7da; color: #721c24; border-left: 5px solid #dc3545; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 15px; margin-top: 10px; }
+        .btn-scan { background: #007bff; color: white; }
+        .btn-upload { background: #28a745; color: white; }
+        #reader { width: 100%; margin: 15px 0; }
+        .notice-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+        .notice-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card" style="background: #2c3e50; color: white;">
+            <h2 style="margin:0;">Selamat Pulang, <span id="userName">Pelajar</span></h2>
+            <p style="margin: 5px 0 0 0; opacity: 0.8;">Papan Pemuka Kehadiran Peranti PWA</p>
+        </div>
+
+        <div id="attendanceAlert" class="alert-box"></div>
+
+        <div class="card">
+            <h3>📊 Status Peratusan Kehadiran</h3>
+            <div id="attendanceStatus" style="font-size: 18px; font-weight: bold;">Memuatkan analisis...</div>
+        </div>
+
+        <div class="card" style="border-top: 4px solid #dc3545;">
+            <h3 style="margin-top: 0; color: #dc3545;">📢 Pengumuman & Notis Pentadbiran</h3>
+            <div id="announcementBoard">Sedang memuatkan pengumuman semasa...</div>
+        </div>
+
+        <div class="card">
+            <h3>📷 Daftar Masuk Kelas (Imbas QR/RFID)</h3>
+            <div id="reader"></div>
+            <button class="btn btn-scan" onclick="startScanner()">Mula Mengimbas Kod QR</button>
+        </div>
+
+        <div class="card">
+            <h3>📝 Serahan Sijil Sakit / Cuti Pelepasan</h3>
+            <input type="file" id="mcFile" accept="image/*" capture="environment">
+            <button class="btn btn-upload" onclick="uploadMC()">Hantar Sijil Digital</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('userName').innerText = localStorage.getItem('full_name') || 'Pelajar';
+
+        // 1. Ambil Laporan Kehadiran & Proses Amaran Had Ambang (Threshold)
+        async function loadReport() {
+            try {
+                const res = await fetch('attendance_api/get_student_report.php');
+                const data = await res.json();
+                
+                const statusDiv = document.getElementById('attendanceStatus');
+                const alertDiv = document.getElementById('attendanceAlert');
+                
+                let percentage = parseFloat(data.percentage) || 100;
+                statusDiv.innerHTML = `Jumlah Kehadiran: <span style="color:${percentage < 70 ? 'red' : 'green'}">${percentage}%</span><br>
+                                       <small>Status Peperiksaan: ${data.eligible_for_exam ? 'LAYAK' : 'DISEKAT'}</small>`;
+                
+                // Logik Amaran Automatik Berdasarkan Kehadiran Semasa
+                if (percentage < 70) {
+                    alertDiv.className = "alert-box alert-danger";
+                    alertDiv.innerHTML = `⚠️ AMARAN KRITIKAL: Kehadiran anda di bawah 70% (${percentage}%). Profil anda telah dihantar ke unit Kaunseling & Ibu Bapa. Anda berisiko disekat daripada menduduki peperiksaan!`;
+                    alertDiv.style.display = "block";
+                } else if (percentage < 80) {
+                    alertDiv.className = "alert-box alert-warning";
+                    alertDiv.innerHTML = `🔔 PERINGATAN AWAL: Kadar kehadiran anda didapati merosot di bawah 80% (${percentage}%). Sila pastikan anda mempunyai alasan sah untuk mengelakkan tindakan disiplin.`;
+                    alertDiv.style.display = "block";
+                } else {
+                    alertDiv.style.display = "none";
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        // 2. Tarik Pengumuman Real-Time Yang Dibuat Oleh Admin
+        async function loadAnnouncements() {
+            try {
+                const res = await fetch('attendance_api/admin_api.php?action=get_announcements');
+                const result = await res.json();
+                const board = document.getElementById('announcementBoard');
+                
+                if (result.status === 'success' && result.data.length > 0) {
+                    board.innerHTML = '';
+                    result.data.forEach(item => {
+                        board.innerHTML += `
+                            <div class="notice-item">
+                                <strong style="color:#2c3e50;">${item.title}</strong><br>
+                                <small style="color:gray;">Disiarkan pada: ${item.created_at}</small>
+                                <p style="margin: 5px 0 0 0; font-size:14px; color:#555;">${item.content}</p>
+                            </div>
+                        `;
+                    });
+                } else {
+                    board.innerHTML = '<p style="color:gray; font-size:14px;">Tiada sebarang pengumuman aktif buat masa ini.</p>';
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        // Panggil fungsi pemaparan apabila portal dibuka
+        loadReport();
+        loadAnnouncements();
+
+        function startScanner() {
+            const html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
+            (decodedText) => {
+                const qr = JSON.parse(decodedText);
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    submitCheckIn(qr.sid, qr.tok, pos.coords.latitude, pos.coords.longitude);
+                    html5QrCode.stop();
+                });
+            }).catch(err => alert("Kamera gagal diakses: " + err));
+        }
+
+        async function submitCheckIn(sid, tok, lat, lng) {
+            const res = await fetch('attendance_api/checkin.php', {
+                method: 'POST',
+                body: JSON.stringify({ student_id: localStorage.getItem('user_db_id'), session_id: sid, qr_token: tok, lat, lng })
+            });
+            const data = await res.json();
+            alert(data.message);
+            loadReport();
+        }
+
+        async function uploadMC() {
+            const fileInput = document.getElementById('mcFile');
+            if(fileInput.files.length === 0) return alert("Sila pilih fail dokumen telebih dahulu.");
+            const formData = new FormData();
+            formData.append('mc_file', fileInput.files[0]);
+            formData.append('leave_type', 'Sick');
+
+            const res = await fetch('attendance_api/upload_mc.php', { method: 'POST', body: formData });
+            const data = await res.json();
+            alert(data.message);
+        }
+    </script>
+</body>
+</html>

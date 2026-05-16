@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <title>Attendance PWA Login</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f4f4f9; }
+        .login-card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>Attendance Login</h2>
+        <input type="text" id="userID" placeholder="ID (e.g. S101)">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="handleLogin()">Login</button>
+    </div>
+
+    <script>
+        async function handleLogin() {
+            const user_id = document.getElementById('userID').value;
+            const password = document.getElementById('password').value;
+
+            const response = await fetch('login.php', {
+                method: 'POST',
+                body: JSON.stringify({ user_id, password })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                // Save user info to the browser
+                localStorage.setItem('user_db_id', data.user.id);
+                localStorage.setItem('user_role', data.user.role);
+                localStorage.setItem('full_name', data.user.name);
+
+                // Redirect based on role
+                if (data.user.role === 'Student') window.location.href = 'student.html';
+                else if (data.user.role === 'Teacher') window.location.href = 'teacher.html';
+                else window.location.href = 'admin.html';
+            } else {
+                alert(data.message);
+            }
+        }
+    </script>
+</body>
+</html>

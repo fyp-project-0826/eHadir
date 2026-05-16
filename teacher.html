@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <title>Teacher Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #f0f2f5; }
+        .nav { background: #343a40; color: white; padding: 1rem; display: flex; justify-content: space-between; }
+        .container { padding: 20px; max-width: 1000px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .qr-container { display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        .btn { padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="nav">
+    <span>Welcome, <b id="teacherName">Teacher</b></span>
+    <button onclick="logout()" style="background:none; color:white; border:1px solid white; cursor:pointer;">Logout</button>
+</div>
+
+<div class="card" style="border-top: 4px solid #ffc107; background: #fffdf6;">
+            <h3 style="margin-top: 0; color: #d39e00; display: flex; align-items: center;">📢 Makluman Pentadbiran Sistem (Admin Notice)</h3>
+            <div id="teacherNoticeBoard" style="font-size: 14px; color: #333;">Memuatkan kenyataan pentadbir...</div>
+        </div>
+
+<div class="container">
+    
+    <!-- Section 1: Generate QR -->
+    <div class="card">
+        <h3>Generate Attendance QR</h3>
+        <select id="classSelect">
+            <option value="">Select a Class</option>
+            <!-- Options filled by JS -->
+        </select>
+        <button class="btn btn-primary" onclick="generateQR()">Start Class & Show QR</button>
+        
+        <div class="qr-container">
+            <div id="qrcode"></div>
+            <p id="qrStatus"></p>
+
+            <div id="liveStats" style="display:none; margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 8px; text-align: center; width: 100%; max-width: 300px; box-shadow: inset 0 0 5px rgba(0,0,0,0.1);">
+                <h4 style="margin:0 0 10px 0; color: #495057;">Kehadiran Langsung (Real-Time)</h4>
+                <p style="margin:0; font-size: 32px; font-weight: bold; color: #28a745;">
+                    <span id="livePresent">0</span> <span style="font-size: 20px; color: #6c757d;">/ <span id="liveTotal">0</span></span>
+                </p>
+                <small style="color:#6c757d;">Mengemas kini secara automatik...</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Laporan Kehadiran & Cetakan</h3>
+        <div style="margin-bottom: 15px;">
+            <label>Filter: </label>
+            <input type="date" id="filterDate">
+            <select id="filterMonth">
+                <option value="">Pilih Bulan</option>
+                <option value="01">Januari</option>
+                </select>
+            <button class="btn btn-dark" onclick="printReport()">Cetak Laporan (PDF)</button>
+        </div>
+    
+        <table id="reportTable">
+            <thead>
+                <tr>
+                    <th>Nama Pelajar</th>
+                    <th>Status</th>
+                    <th>Tindakan</th>
+                </tr>
+            </thead>
+            <tbody id="reportTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Section 2: Manage MC / Leave Requests -->
+    <div class="card">
+        <h3>Pending Medical Certificates (MC)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Student Name</th>
+                    <th>Type</th>
+                    <th>File</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="mcTableBody">
+                <!-- Rows filled by JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Section 3: Register Student -->
+    <div class="card">
+        <h3>Register New Student</h3>
+        <input type="text" id="newStudentName" placeholder="Full Name">
+        <input type="text" id="newStudentID" placeholder="Student ID">
+        <input type="password" id="newStudentPass" placeholder="Temporary Password">
+        <button class="btn btn-success" onclick="registerStudent()">Sign Up Student</button>
+    </div>
+
+</div>
+
+<script>
+    // Set Teacher Name from LocalStorage
+    document.getElementById('teacherName').innerText = localStorage.getItem('full_name');
+
+    // 1. Fetch Classes for Dropdown
+    async function fetchClasses() {
+        const res = await fetch('get_classes.php');
+        const data = await res.json();
+        const select = document.getElementById('classSelect');
+        if(data.status === 'success') {
+            data.classes.forEach(c => {
+                let opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = `${c.class_code} - ${c.class_name}`;
+                select.appendChild(opt);
+            });
+        }
+    }
+
+    let liveInterval = null; // Pembolehubah global untuk mengawal timer "real-time"
+
+    // 2. Generate QR Code Logic
+    async function generateQR() {
+        const classId = document.getElementById('classSelect').value;
+        if(!classId) return alert("Sila pilih kelas terlebih dahulu!");
+
+        // Pastikan path ini betul mengikut susunan fail anda (tambah attendance_api/ jika perlu)
+        const res = await fetch('generate_session.php', {
+            method: 'POST',
+            body: JSON.stringify({ class_id: classId })
+        });
+
+        let data;
+        try {
+            data = await res.json();
+        } catch (e) {
+            const raw = await res.text();
+            console.error('generate_session non-json response', raw);
+            alert('generate_session returned non-JSON. Open console for details.');
+            return;
+        }
+
+        if(data.status === 'success') {
+            document.getElementById('qrcode').innerHTML = ""; // Padam QR lama jika ada
+            new QRCode(document.getElementById("qrcode"), {
+                // Nota: student_id tidak semestinya perlu di sini kerana telefon pelajar sudah tahu ID mereka
+                text: JSON.stringify({ session_id: data.session_id, qr_token: data.qr_token }),
+                width: 200,
+                height: 200
+            });
+            document.getElementById('qrStatus').innerText = "QR Aktif! Pelajar sudah boleh scan.";
+
+            // --- BAHAGIAN BARU UNTUK REAL-TIME ---
+            // Tunjukkan kotak statistik dan mulakan pengiraan
+            document.getElementById('liveStats').style.display = 'block';
+            startLiveTracking(data.session_id);
+        } else {
+            alert(data.message); // Paparkan mesej jika ralat dari pangkalan data
+        }
+    }
+
+    // Fungsi sokongan 1: Mulakan pusingan pengemaskinian automatik
+    function startLiveTracking(sessionId) {
+        if(liveInterval) clearInterval(liveInterval); // Hentikan timer lama (jika guru tukar kelas)
+        
+        fetchLiveStats(sessionId); // Panggil terus untuk kali pertama
+        
+        // Tetapkan timer untuk bertanya kepada pelayan setiap 3 saat (3000ms)
+        liveInterval = setInterval(() => {
+            fetchLiveStats(sessionId);
+        }, 3000); 
+    }
+
+    // Fungsi sokongan 2: Tarik data terbaru dari pangkalan data
+    async function fetchLiveStats(sessionId) {
+        try {
+            // Pastikan path ke get_live_attendance.php adalah betul
+            const res = await fetch(`get_live_attendance.php?session_id=${sessionId}`);
+            const data = await res.json();
+            
+            if(data.status === 'success') {
+                document.getElementById('livePresent').innerText = data.total_present;
+                document.getElementById('liveTotal').innerText = data.total_students;
+            }
+        } catch(e) {
+            console.error("Ralat mengemaskini Live Stats:", e);
+        }
+    }
+
+    // 3. Fetch MC Requests
+    async function fetchMCs() {
+        const res = await fetch('get_leave_requests.php');
+        const data = await res.json();
+        const tbody = document.getElementById('mcTableBody');
+        tbody.innerHTML = "";
+
+        if(data.status === 'success') {
+            data.requests.forEach(req => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${req.full_name} (${req.student_reg_no})</td>
+                        <td>${req.leave_type}</td>
+                        <td><a href="${req.mc_file_path}" target="_blank">View File</a></td>
+                        <td>
+                            <button class="btn btn-success" onclick="processMC(${req.id}, 'Approve')">Approve</button>
+                            <button class="btn" style="background:#dc3545; color:white;" onclick="processMC(${req.id}, 'Reject')">Reject</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    }
+
+    async function processMC(id, action) {
+        const res = await fetch('approve_leave.php', {
+            method: 'POST',
+            body: JSON.stringify({ request_id: id, action: action })
+        });
+        const data = await res.json();
+        alert(data.message);
+        fetchMCs(); // Refresh list
+    }
+
+    // 4. Register Student (Sign Up Student)
+    async function registerStudent() {
+        const name = document.getElementById('newStudentName').value;
+        const id = document.getElementById('newStudentID').value;
+        const pass = document.getElementById('newStudentPass').value;
+
+        const res = await fetch('register_student.php', {
+            method: 'POST',
+            body: JSON.stringify({ full_name: name, user_id: id, password: pass })
+        });
+        const data = await res.json();
+        alert(data.message);
+    }
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = 'index.html';
+    }
+
+    // Initial Load
+    fetchClasses();
+    fetchMCs();
+
+        // 1. Fungsi Padam Pelajar
+    async function deleteStudent(id) {
+        if(!confirm("Adakah anda pasti mahu memadam pelajar ini? Semua rekod berkaitan akan hilang.")) return;
+
+        const res = await fetch('manage_data.php', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'delete_student', id: id })
+        });
+        const result = await res.json();
+        alert(result.message);
+        // Refresh senarai pelajar
+    }
+
+    // 2. Fungsi Edit Kehadiran
+    async function updateAttendance(studentId, sessionId, newStatus) {
+        const res = await fetch('manage_data.php', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                action: 'edit_attendance', 
+                student_id: studentId, 
+                session_id: sessionId, 
+                status: newStatus 
+            })
+        });
+        const result = await res.json();
+        alert(result.message);
+    }
+
+    // 3. Fungsi Cetak Laporan
+    function printReport() {
+    const classId = document.getElementById('classSelect').value;
+    if(!classId) return alert("Sila pilih kelas!");
+
+    const date = document.getElementById('filterDate').value;
+    const month = document.getElementById('filterMonth').value;
+    
+    let url = `print_report.php?class_id=${classId}`;
+    
+    if (date) {
+        url += `&type=day&val=${date}`;
+    } else if (month) {
+        url += `&type=month&val=${month}`;
+    } else {
+        url += `&type=semester`; // Default kepada keseluruhan semester
+    }
+
+    window.open(url, '_blank');
+    }
+
+    // Fungsi untuk memaparkan notis admin pada portal tenaga pengajar
+    async function loadSystemNotices() {
+        try {
+            const res = await fetch('attendance_api/admin_api.php?action=get_announcements');
+            const result = await res.json();
+            const board = document.getElementById('teacherNoticeBoard');
+            
+            if (result.status === 'success' && result.data.length > 0) {
+                board.innerHTML = '';
+                result.data.forEach(item => {
+                    board.innerHTML += `
+                        <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed #ffeeba;">
+                            <strong>📌 ${item.title}</strong> <small style="color:gray;">(${item.created_at})</small><br>
+                            <span style="color:#555;">${item.content}</span>
+                        </div>
+                    `;
+                });
+            } else {
+                board.innerHTML = '<span style="color:gray;">Tiada notis penting daripada pentadbir hari ini.</span>';
+            }
+        } catch(e) { console.error("Gagal memuatkan notis:", e); }
+    }
+
+    // Jalankan fungsi semasa fail dimuatkan
+    loadSystemNotices();
+</script>
+</body>
+</html>
